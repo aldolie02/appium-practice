@@ -1,0 +1,79 @@
+
+plugins {
+	id 'java'
+	id 'application'
+}
+
+group = 'com.zofap.appiumpractice'
+version = '1.0-BASIC'
+
+repositories {
+	mavenCentral()
+	maven { url 'https://jitpack.io' }
+}
+
+dependencies {
+	implementation 'com.github.appium:java-client:8.6.0'
+	implementation 'org.seleniumhq.selenium:selenium-java:4.12.1'
+	implementation 'org.seleniumhq.selenium:selenium-api:4.12.1'
+	implementation 'org.seleniumhq.selenium:selenium-remote-driver:4.12.1'
+	implementation 'com.miglayout:miglayout-swing:11.4.2'
+	compileOnly 'com.yworks:yguard:4.1.1'
+}
+
+application {
+	mainClassName = 'com.zofap.appiumpractice.Main'
+}
+
+jar {
+	duplicatesStrategy(DuplicatesStrategy.EXCLUDE)
+	manifest {
+		attributes 'Main-Class': application.mainClassName
+	}
+	baseName 'botocrypto'
+}
+
+task copyRuntimeLibs(type: Copy) {
+	from(sourceSets.main.runtimeClasspath){ include '*.jar' }
+	into('build/libs2/')
+}
+
+task yguard {
+	dependsOn copyRuntimeLibs
+	dependsOn jar
+
+	group 'yGuard'
+	description 'Obfuscates and shrinks the java archive.'
+
+	doLast {
+		def archivePath = jar.archiveFile.get().asFile.path
+		def unobfJar = archivePath.replace(".jar", "_unobf.jar")
+
+		ant.move(file: archivePath, tofile: unobfJar, verbose: true)
+
+		ant.taskdef(
+				name: 'yguard',
+				classname: 'com.yworks.yguard.YGuardTask',
+				classpath: sourceSets.main.compileClasspath.asPath
+		)
+
+		ant.yguard {
+			inoutpair(in: unobfJar, out: archivePath)
+			rename(logfile: "${buildDir}/${rootProject.name}_renamelog.xml") {
+				keep {
+					'method'(name: 'void main(java.lang.String[])', class: application.mainClassName)
+					'class' (name: 'com.zofap.appiumpractice.Main')
+					'class'(classes: 'public', methods: 'public', fields: 'private'){
+						patternset {
+							exclude(name: 'com.zofap.appiumpractice.*')
+							include(name: 'com.zofap.appiumpractice.dto.*')
+						}
+					}
+
+				}
+			}
+		}
+	}
+}
+
+assemble.dependsOn yguard
